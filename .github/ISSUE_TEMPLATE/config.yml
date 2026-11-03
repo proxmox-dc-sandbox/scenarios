@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure
+    url: https://github.com/security
+    about: |
+      Do not report vulnerabilities in a public issue — follow
+      SECURITY.md (private reporting channel of the repository).
+  - name: Discussions
+    url: https://github.com/discussions
+    about: Questions, ideas and usage feedback before opening an issue.

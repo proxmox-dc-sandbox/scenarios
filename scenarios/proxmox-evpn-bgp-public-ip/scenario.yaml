@@ -1,0 +1,281 @@
+name: proxmox-evpn-bgp-public-ip
+description: "KVM lab: an isolated Proxmox VE node (10.10.0.0/24) behind a MikroTik CHR (BGP/EVPN) and a dual-homed bastion jump host."
+
+env:
+  - name: LAB_VM_PASSWORD
+    generate: true
+    description: "Password of the bastion VM user (generated and kept in private scenario state)"
+  - name: LAB_VM_SSH_KEY
+    description: "SSH public key injected into the VMs (published by the ssh-keygen step)"
+  - name: PVE_ROOT_PASSWORD
+    generate: true
+    description: "Root password of the Proxmox VE node (generated and kept in private scenario state)"
+  - name: PVE_ISO
+    value: "assets/proxmox-ve_9.2-1.iso"
+    path: true
+    required: true
+    description: "Scenario-local target path for the downloaded Proxmox VE installation ISO"
+  - name: PVE_ISO_URL
+    value: "https://enterprise.proxmox.com/iso/proxmox-ve_9.2-1.iso"
+    description: "Official Proxmox VE installation ISO URL"
+  - name: PVE_ISO_SHA256
+    value: "4e88fe416df9b527624a175f24c9aa07c714d3332afb1ee3dbf3879573ef2c6c"
+    description: "Official SHA-256 checksum for the Proxmox VE ISO"
+  - name: KVM_STORE_DIR
+    value: "runtime/kvm_store"
+    path: true
+    description: "Scenario-local libvirt disk/image store"
+  - name: VM_NAME
+    value: "pve"
+  - name: VM_POOL
+    value: "default"
+  - name: VM_NETWORK
+    value: "pdcs-private-network"
+    description: "libvirt network of the Proxmox node (isolated private network)"
+  - name: VM_MAC
+    value: "52:54:00:00:00:43"
+  - name: VM_MEMORY
+    value: "4096"
+  - name: VM_VCPUS
+    value: "4"
+  - name: VM_DISK_GB
+    value: "30"
+  - name: VM_WAIT
+    value: "30"
+  - name: API_WAIT
+    value: "10"
+  - name: PVE_KEYBOARD
+    value: "en-us"
+  - name: PVE_COUNTRY
+    value: "fr"
+  - name: PVE_CIDR
+    value: "10.10.0.23/24"
+  - name: PVE_DNS
+    value: "10.10.0.1"
+  - name: PVE_GATEWAY
+    value: "10.10.0.1"
+  - name: PVE_NIC
+    value: "enp1s0"
+  - name: PVE_FQDN
+    value: "pve.example.local"
+  - name: PVE_MAILTO
+    value: "admin@example.local"
+  - name: PVE_TIMEZONE
+    value: "Europe/Paris"
+  - name: PROXMOX_NODE_ADDRESS
+    value: "10.10.0.23"
+    description: "Proxmox VE node address on the private network"
+  - name: PROXMOX_NODE_NAME
+    value: "pve"
+  - name: PROXMOX_VE_SSH_AGENT
+    value: "false"
+  # Add valid local credentials; never commit the filled-in values.
+  - name: MIKROTIK_LICENSE_EMAIL
+    description: "Local MikroTik account email; enter the valid account in scenario.yaml (do not commit credentials)"
+  - name: MIKROTIK_LICENSE_PASSWORD
+    description: "Local MikroTik account password; enter the valid account in scenario.yaml (do not commit credentials)"
+  - name: PROXMOX_VE_ENDPOINT
+    description: "Proxmox VE API endpoint: set by the bastion-proxy step to the SSH tunnel (or explicitly for direct access)"
+  - name: PROXMOX_VE_API_TOKEN
+    description: "API token (user@realm!tokenid=secret); created by the proxmox-api-token step"
+  - name: PROXMOX_VE_USERNAME
+    value: "root@pam"
+  - name: PROXMOX_VE_SSH_PRIVATE_KEY_PATH
+    description: "SSH private key used by the provider and the bastion jump (published by the ssh-keygen step)"
+  - name: PVE_SSH_PUBKEY
+    description: "Public key installed on Proxmox VE (published by the ssh-keygen step)"
+  - name: PROXMOX_VE_SSH_USERNAME
+    value: "root"
+  - name: PROXMOX_VE_SSH_PASSWORD
+    value: "${PVE_ROOT_PASSWORD}"
+    description: "Optional SSH password (defaults to PVE_ROOT_PASSWORD)"
+  - name: PROXMOX_VE_SSH_SOCKS5
+    description: "SOCKS5 proxy for the provider SSH (set by the bastion-proxy step)"
+  - name: PROXMOX_VE_INSECURE
+    value: "true"
+  - name: PVE_BASTION
+    description: "Public address of the bastion jump host (set by the bastion-proxy step)"
+  - name: PVE_BASTION_USER
+    value: "lab_user"
+  - name: BASTION_PUBLIC_MAC
+    value: "52:54:00:00:00:ba"
+  - name: BASTION_SOCKS_PORT
+    value: "1080"
+  - name: BASTION_API_PORT
+    value: "8443"
+  - name: BASTION_WAIT
+    value: "300"
+  - name: CHR_WAN_MAC
+    value: "52:54:00:00:00:aa"
+  - name: CHR_WAIT
+    value: "300"
+  - name: PVE_TOKEN_ID
+    value: "orchestrator"
+  - name: PVE_SSH_WAIT
+    value: "600"
+  - name: BGP_WAIT
+    value: "180"
+  - name: BGP_PEER
+    value: "10.10.0.1"
+  - name: CHR_PUBLIC_IP
+    description: "Public address of the MikroTik CHR (set by the mikrotik-config step)"
+
+steps:
+  - id: check-dependencies
+    type: sh
+    path: infra/scripts/dependencies-check.sh
+    description: "Checks that the dependencies are present on the machine"
+
+  - id: download-proxmox-iso
+    type: sh
+    path: infra/scripts/download-proxmox-iso.sh
+    depends_on: [check-dependencies]
+    requires_env: [PVE_ISO, PVE_ISO_URL, PVE_ISO_SHA256]
+    description: "Download and verify the Proxmox VE ISO in the scenario assets directory"
+
+  - id: validate-mikrotik-license-inputs
+    type: sh
+    path: infra/scripts/mikrotik/validate-license-inputs.sh
+    depends_on: [download-proxmox-iso]
+    requires_env: [MIKROTIK_LICENSE_EMAIL, MIKROTIK_LICENSE_PASSWORD]
+    description: "Validate license credentials before creating any lab VMs or networks"
+
+  - id: ssh-keygen
+    type: sh
+    path: infra/scripts/ssh-keygen.sh
+    depends_on: [validate-mikrotik-license-inputs]
+    outputs: [PROXMOX_VE_SSH_PRIVATE_KEY_PATH, LAB_VM_SSH_KEY, PVE_SSH_PUBKEY]
+    description: "Generate/reuse the lab SSH key pair and publish its values to the orchestrator"
+
+  - id: kvm-network-creation
+    type: sh
+    path: infra/scripts/kvm-net-creation.sh
+    args: ["start"]
+    depends_on: [validate-mikrotik-license-inputs]
+    description: "Create the KVM networks: public (NAT) and private (isolated)"
+
+  - id: mikrotik-vm-creation
+    type: sh
+    path: infra/scripts/mikrotik-router.sh
+    depends_on: [kvm-network-creation]
+    description: "Create the MikroTik CHR router VM (dual-homed)"
+
+  - id: mikrotik-config
+    type: sh
+    path: infra/scripts/mikrotik/config-chr.sh
+    depends_on: [mikrotik-vm-creation]
+    requires_env: [MIKROTIK_LICENSE_EMAIL, MIKROTIK_LICENSE_PASSWORD]
+    outputs: [CHR_PUBLIC_IP]
+    description: "Activate the CHR p-unlimited license and configure LAN, NAT, firewall and BGP"
+
+  - id: bastion-vm-creation
+    type: sh
+    path: infra/scripts/bastion/provisionner.sh
+    depends_on: [kvm-network-creation, ssh-keygen]
+    requires_env: [LAB_VM_SSH_KEY]
+    description: "Create the dual-homed bastion VM (public DHCP, private 10.10.0.2/24)"
+
+  - id: bastion-proxy
+    type: sh
+    path: infra/scripts/bastion-proxy.sh
+    depends_on: [bastion-vm-creation]
+    requires_env: [PROXMOX_VE_SSH_PRIVATE_KEY_PATH]
+    outputs: [PVE_BASTION, PROXMOX_VE_ENDPOINT, PROXMOX_VE_SSH_SOCKS5]
+    description: "Start the SSH tunnel/SOCKS proxy to the private network through the bastion"
+
+  - id: proxmox-vm-creation
+    type: sh
+    path: infra/scripts/proxmox/run.sh
+    args: ["${PVE_ISO}"]
+    depends_on: [mikrotik-config, download-proxmox-iso, bastion-proxy]
+    requires_env: [PVE_ISO, PVE_ROOT_PASSWORD, LAB_VM_SSH_KEY, PROXMOX_VE_ENDPOINT]
+    description: "Install the Proxmox VE node on the private network from the verified ISO (unattended)"
+
+  - id: proxmox-api-token
+    type: sh
+    path: infra/scripts/proxmox/pve-token.sh
+    depends_on: [proxmox-vm-creation, bastion-proxy]
+    requires_env: [PVE_ROOT_PASSWORD, PVE_BASTION, PROXMOX_VE_ENDPOINT]
+    outputs: [PROXMOX_VE_API_TOKEN]
+    description: "Create the Proxmox API token on the node (via the bastion) and publish it to the orchestrator"
+
+  - id: proxmox-node-prep
+    type: sh
+    path: infra/scripts/proxmox/node-prep.sh
+    depends_on: [proxmox-api-token]
+    requires_env: [PVE_BASTION]
+    description: "Prepare the node storage for the client (snippets content type)"
+
+  - id: proxmox-provisioning
+    type: terragrunt
+    path: infra/terragrunt
+    depends_on: [proxmox-node-prep, bastion-proxy]
+    requires_env: [PVE_ROOT_PASSWORD, PROXMOX_VE_API_TOKEN, PROXMOX_VE_ENDPOINT, PROXMOX_VE_SSH_SOCKS5, LAB_VM_PASSWORD, LAB_VM_SSH_KEY]
+    description: "Provision via Terragrunt (foundation/controllers, zone, networking, compute) through the SSH tunnel"
+
+  - id: bgp-verify
+    type: sh
+    path: infra/scripts/mikrotik/verify-bgp.sh
+    depends_on: [proxmox-provisioning]
+    requires_env: [CHR_PUBLIC_IP, PVE_BASTION]
+    description: "Verify the BGP session between the node (FRR) and the MikroTik CHR"
+
+cleanup:
+  - id: bastion-proxy-cleanup
+    type: sh
+    path: infra/scripts/bastion-proxy.sh
+    requires_env: [PROXMOX_VE_SSH_PRIVATE_KEY_PATH]
+    outputs: [PVE_BASTION, PROXMOX_VE_ENDPOINT, PROXMOX_VE_SSH_SOCKS5]
+    description: "Ensure the SSH tunnel to the private network is available for the teardown"
+
+  - id: proxmox-compute-deprovisioning
+    type: terragrunt
+    path: infra/terragrunt/03-compute
+    args: ["destroy"]
+    requires_env: [PVE_ROOT_PASSWORD, PROXMOX_VE_ENDPOINT, PROXMOX_VE_SSH_SOCKS5, LAB_VM_PASSWORD, LAB_VM_SSH_KEY]
+    depends_on: [bastion-proxy-cleanup]
+    description: "Destroy Proxmox compute resources before networking"
+
+  - id: proxmox-networking-deprovisioning
+    type: terragrunt
+    path: infra/terragrunt/02-networking
+    args: ["destroy"]
+    requires_env: [PVE_ROOT_PASSWORD, PROXMOX_VE_ENDPOINT, PROXMOX_VE_SSH_SOCKS5]
+    depends_on: [proxmox-compute-deprovisioning]
+    description: "Destroy VNets and subnets before the foundation (zones and controllers)"
+
+  - id: proxmox-foundation-deprovisioning
+    type: terragrunt
+    path: infra/terragrunt/01-foundation
+    args: ["destroy"]
+    requires_env: [PVE_ROOT_PASSWORD, PROXMOX_VE_ENDPOINT, PROXMOX_VE_SSH_SOCKS5]
+    depends_on: [proxmox-networking-deprovisioning]
+    description: "Destroy foundation resources — SDN zones before their controllers (module-managed ordering since modules v0.1.0)"
+
+  - id: proxmox-vm-destroy
+    type: sh
+    path: infra/scripts/proxmox/run.sh
+    args: ["--destroy"]
+    depends_on: [proxmox-foundation-deprovisioning]
+    description: "Stop and remove the Proxmox VE VM, its disks and ISO"
+
+  - id: mikrotik-vm-deletion
+    type: sh
+    path: infra/scripts/mikrotik-router.sh
+    args: ["delete"]
+    depends_on: [proxmox-vm-destroy]
+    description: "Remove the MikroTik CHR VM and its disk"
+
+  - id: bastion-vm-deletion
+    type: sh
+    path: infra/scripts/bastion/provisionner.sh
+    args: ["down"]
+    depends_on: [proxmox-vm-destroy, mikrotik-vm-deletion]
+    description: "Remove the bastion VM and the networks it manages"
+
+  - id: kvm-network-deletion
+    type: sh
+    path: infra/scripts/kvm-net-creation.sh
+    args: ["delete"]
+    depends_on: [bastion-vm-deletion, mikrotik-vm-deletion]
+    description: "Remove the KVM networks (idempotent)"

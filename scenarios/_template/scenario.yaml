@@ -1,0 +1,76 @@
+name: my-scenario
+description: "An example manifest for the orchestrator - replace with your description."
+
+# Values the scenario needs. `scenario.yaml` is the single source of truth;
+# required values must be filled in here before the first step. Generated
+# secrets and step outputs are persisted by Go in the private scenario state.
+# ${VAR} / ${VAR:-default} can be used in step args and step env.
+env:
+  - name: LAB_VM_PASSWORD
+    required: true
+    description: "Set a local VM password here; do not commit it"
+  # - name: KVM_STORE_DIR
+  #   value: ".runtime/kvm"
+  #   path: true
+
+steps:
+  - id: check-dependencies
+    type: sh
+    path: infra/scripts/dependencies-check.sh
+    description: "Checks that the dependencies are present on the machine"
+
+  - id: kvm-network-creation
+    type: sh
+    path: infra/scripts/kvm-net-creation.sh
+    description: "Create the necessary network bridges and interfaces"
+
+  - id: mikrotik-vm-creation
+    type: sh
+    path: infra/scripts/mikrotik-router.sh
+    description: "Create the mikrotik vm"
+
+  - id: bastion-vm-creation
+    type: sh
+    path: infra/scripts/bastion/provisionner.sh
+    description: "Create the bastion vm"
+
+  # - id: provision
+  #   type: terraform
+  #   path: infra/terraform
+  #   depends_on: [check-dependencies]
+  #   description: "Creates the Proxmox resources (VMs, VNets, ...)"
+
+  # # Ansible uses the <root>/inventory file (or PDCS_ANSIBLE_INVENTORY).
+  # - id: configure
+  #   type: ansible
+  #   path: infra/ansible/site.yml
+  #   depends_on: [provision]
+  #   description: "Configures the VMs and installs the applications"
+
+  # - id: seed-data
+  #   type: sh
+  #   path: infra/scripts/seed.sh
+  #   depends_on: [configure]
+  #   optional: true
+  #   description: "Loads demonstration data"
+
+  # - id: fault-injection
+  #   type: sh
+  #   path: chaos/scripts/fault.sh
+  #   phase: chaos
+  #   optional: true
+  #   description: "Service disruption (chaos phase only)"
+
+  # - id: recon
+  #   type: go
+  #   path: redteam/recon
+  #   phase: redteam
+  #   optional: true
+  #   description: "Network reconnaissance (redteam phase only)"
+
+# Teardown, run with: orchestrator -scenario scenario.yaml -down
+# cleanup:
+#   - id: delete-vms
+#     type: sh
+#     path: infra/scripts/down.sh
+#     description: "Removes the VMs and networks"

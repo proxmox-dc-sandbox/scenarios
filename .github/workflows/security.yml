@@ -1,0 +1,70 @@
+# security — secret scanning (gitleaks) + shell lint (ShellCheck).
+#
+# - gitleaks scans the FULL history (fetch-depth: 0) with the rules of
+#   .gitleaks.toml: the default rule set extended with the project rule that
+#   fails on the two credentials compromised in the 2026-10 incident. The
+#   private history allowlist lives in .gitleaks.toml (see SECURITY.md).
+# - ShellCheck covers every script except the vendored legacy
+#   virsh_strator.sh copies (reworked with the template backport; see the
+#   repository improvements roadmap).
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_VERSION: "8.30.1"
+  SHELLCHECK_VERSION: "0.11.0"
+
+jobs:
+  gitleaks:
+    name: gitleaks (secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # scan the whole history, not just the diff
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin" gitleaks
+          "$HOME/.local/bin/gitleaks" version
+      - name: gitleaks detect (full history, .gitleaks.toml rules)
+        run: |
+          "$HOME/.local/bin/gitleaks" detect \
+            --source . --config .gitleaks.toml --verbose --redact --no-banner
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJ --strip-components=1 -C "$HOME/.local/bin" "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+          "$HOME/.local/bin/shellcheck" --version | head -2
+      - name: shellcheck (all scripts except vendored legacy copies)
+        run: |
+          set -euo pipefail
+          status=0
+          while IFS= read -r -d '' f; do
+            case "$f" in
+              *virsh_strator*) continue ;;   # vendored legacy, reworked with the template backport
+            esac
+            echo "::group::shellcheck $f"
+            "$HOME/.local/bin/shellcheck" -x "$f" || status=1
+            echo "::endgroup::"
+          done < <(find scenarios orchestrator docker -name "*.sh" -type f -print0)
+          exit "$status"

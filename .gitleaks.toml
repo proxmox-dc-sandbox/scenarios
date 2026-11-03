@@ -1,0 +1,32 @@
+# gitleaks configuration — scenarios
+#
+# Runs in CI (security workflow) over the full history. Default rules are
+# extended with one project-specific rule that fails on the two lab
+# credentials compromised in the 2026-10 incident (see SECURITY.md,
+# "Historical incident"): they must never be re-introduced.
+#
+# The private history still contains them in five commits, allowlisted
+# below. After the planned fresh-repo re-init (public history starts
+# clean), those commits no longer exist and this allowlist becomes inert —
+# keep the rule, drop the allowlist whenever convenient.
+
+title = "pdcs-scenarios gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "pdcs-compromised-lab-credentials"
+description = "Known compromised lab credentials (SECURITY.md, Historical incident)"
+regex = '''Cloudbox123!|fasil123'''
+tags = ["credential", "known-compromised"]
+
+[[allowlists]]
+description = "Pre-TASK-01 commits containing the compromised credentials (kept for private-history traceability)"
+commits = [
+    "2304a0c8f6e8d40dc6de2a08c4c7d6b85f5fcf98",
+    "60572cbd277edecb9c7bfb41fd55ea2e88749e7a",
+    "ac1f828d91a8d0a285024536bc8bcbf928227cdc",
+    "c0dc4e5810836abf78ffb9893b61563e6e0f7388",
+    "d348ab7646966ec68b422dd4a0df7d821a722d2d",
+]

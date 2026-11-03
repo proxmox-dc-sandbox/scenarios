@@ -1,0 +1,58 @@
+# ci — Go orchestrator + scenario manifest validation.
+#
+# Port of the historical .gitlab-ci.yml (the private host is a Gitea
+# instance, which never ran GitLab CI syntax): same two jobs, GitHub
+# Actions syntax.
+#   - orchestrator: build, vet, unit tests (Go version pinned = go.mod).
+#   - manifests: validates every scenario.yaml (including the examples)
+#     with `orchestrator -check`.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  orchestrator:
+    name: go build/vet/test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: build
+        run: cd orchestrator && go build ./...
+      - name: vet
+        run: cd orchestrator && go vet ./...
+      - name: unit tests
+        run: cd orchestrator && go test ./...
+
+  manifests:
+    name: orchestrator -check (scenario.yaml)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: build orchestrator
+        run: cd orchestrator && go build -o bin/orchestrator ./cmd/orchestrator
+      - name: validate every manifest
+        run: |
+          set -euo pipefail
+          status=0
+          while IFS= read -r s; do
+            d=$(dirname "$s")
+            echo "::group::check $d"
+            ./orchestrator/bin/orchestrator -scenario "$s" -check || status=1
+            echo "::endgroup::"
+          done < <(find scenarios orchestrator/examples -name scenario.yaml)
+          exit "$status"

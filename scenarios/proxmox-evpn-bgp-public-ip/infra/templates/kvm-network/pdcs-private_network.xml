@@ -1,0 +1,4 @@
+<network>
+  <name>pdcs-private-network</name>
+  <bridge name="pdcs-priv-br" stp="on" delay="0"/>
+</network>

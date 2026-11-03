@@ -1,0 +1,17 @@
+.git/
+.gitignore
+thekey
+pdcs-core-tf-modules/
+**/.terragrunt-modules/
+**/.terragrunt-cache/
+**/.terraform/
+**/terraform.tfstate*
+**/logs/
+**/.state/
+orchestrator/bin/
+**/.ssh/
+**/.env
+**/*.iso
+**/*.part
+scenarios/*/runtime/
+scenarios/proxmox-evpn-bgp-public-ip/infra/scripts/virsh_strator/virsh_strator/assets/

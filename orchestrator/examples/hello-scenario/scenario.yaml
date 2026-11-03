@@ -1,0 +1,34 @@
+name: hello-scenario
+description: "Minimal validation scenario: shell-only steps, no external dependency (no Terraform, no Ansible)."
+steps:
+  - id: hello
+    type: sh
+    path: scripts/hello.sh
+    description: "Prints a welcome message"
+
+  - id: world
+    type: sh
+    path: scripts/world.sh
+    depends_on: [hello]
+    description: "Prints the second message"
+
+  - id: optional-note
+    type: sh
+    path: scripts/optional.sh
+    depends_on: [world]
+    optional: true
+    description: "Optional step (skippable in guided mode)"
+
+  - id: chaos-restart
+    type: sh
+    path: scripts/chaos.sh
+    phase: chaos
+    optional: true
+    description: "Simulates a failure (exits non-zero - see -continue-on-error)"
+
+  - id: redteam-scan
+    type: sh
+    path: scripts/redteam.sh
+    phase: redteam
+    optional: true
+    description: "Simulates network reconnaissance (redteam phase)"

@@ -1,0 +1,12 @@
+[
+    {
+    "hostname": "pdcs-bastion",
+    "ram": "2048",
+    "vcpus": "1",
+    "disk_size": "20",
+    "user_name": "lab_user",
+    "password": "${LAB_VM_PASSWORD}",
+    "ssh_pub_key": "${LAB_VM_SSH_KEY}",
+    "networks": ["pdcs-public-network","pdcs-private-network"]
+  }
+]

@@ -1,0 +1,40 @@
+# pre-commit hooks — scenarios
+#
+# Install once:  pip install pre-commit && pre-commit install
+# Run manually:  pre-commit run --all-files
+#
+# Local hooks (gitleaks, gofmt) expect the tools on PATH: they are the same
+# commands as the CI (see .github/workflows/ and the Makefile lint/security
+# targets). The vendored legacy virsh_strator.sh copy is excluded here too.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: [-x]
+        exclude: (^|/)virsh_strator\.sh$
+
+  - repo: local
+    hooks:
+      - id: gitleaks
+        name: gitleaks (full history, project config)
+        entry: gitleaks detect --source . --config .gitleaks.toml --redact --no-banner
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: gofmt
+        name: gofmt (orchestrator)
+        entry: bash -c 'cd orchestrator && test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)'
+        language: system
+        files: ^orchestrator/.*\.go$
+        pass_filenames: false

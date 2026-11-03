@@ -1,0 +1,72 @@
+# OpenTofu / Terraform: never version states, plans or local values.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+!**/*.tfvars.example
+*.auto.tfvars
+!**/*.auto.tfvars.example
+
+# Secrets and private keys.
+.env
+.env.*
+!.env.example
+!**/.env.example
+**/vault-password-file
+**/vault.yml
+**/vault.yaml
+*.pem
+*.key
+id_rsa
+id_ed25519
+*private*key*
+# Local runner configuration (machine-specific paths).
+platform/runner/runner.conf
+
+# VM artifacts and build caches.
+*.iso
+*.img
+*.qcow2
+*.raw
+*.vmdk
+*.ova
+*.zip
+*.part
+*.tar.gz
+site/
+.cache/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Orchestrator: local state, logs and binaries.
+.state/
+logs/
+orchestrator/bin/
+
+# Scenarios: credentials/interpolated files (rendered from *.tpl/.example at runtime).
+scenarios/*/infra/scripts/bastion/vms.json
+
+# Reference modules repository (local checkout only, never committed/modified)
+/pdcs-core-tf-modules/
+
+# Terragrunt client artifacts (generated locally)
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/.terragrunt-cache/
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/.terraform/
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/.terraform.lock.hcl
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/*.tfstate
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/*.tfstate.*
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/backend.tf
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/provider.tf
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/bgp_controller.tf
+scenarios/proxmox-evpn-bgp-public-ip/infra/terragrunt/**/zones_config.tf
+
+# Generated lab SSH key (ssh-keygen step)
+scenarios/proxmox-evpn-bgp-public-ip/.terraform-plugin-cache/
+scenarios/*/.ssh/
+scenarios/*/.terragrunt-modules/
+scenarios/*/runtime/

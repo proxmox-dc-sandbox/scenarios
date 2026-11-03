@@ -1,0 +1,12 @@
+<network>
+  <name>pdcs-public-network</name>
+  <bridge name="pdcs-public-net" stp="on" delay="0"/>
+  <forward mode='nat'>
+    <nat/>
+  </forward>
+  <ip address="192.168.200.1" netmask="255.255.255.0">
+    <dhcp>
+      <range start="192.168.200.85" end="192.168.200.115"/>
+    </dhcp>
+  </ip>
+</network>
