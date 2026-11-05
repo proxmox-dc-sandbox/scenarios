@@ -20,6 +20,13 @@ scenarios/
 └── README.md                  this file
 ```
 
+
+## Quickstart
+
+1. Check that your machine is ready: [Prerequisites](/docs/prerequisites.md).
+2. Follow the [Quickstart guide](/docs/quickstart.md).
+3. Run your first scenario and have fun.
+
 ## The orchestrator
 
 Each scenario exposes a `scenario.yaml` manifest (name, description, typed
