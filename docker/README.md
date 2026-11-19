@@ -29,7 +29,7 @@ SCENARIO=proxmox-evpn-bgp-public-ip docker/run.sh down      # teardown
 SCENARIO=proxmox-evpn-bgp-public-ip docker/run.sh resume    # after a failure
 SCENARIO=proxmox-evpn-bgp-public-ip docker/run.sh guided    # step by step
 SCENARIO=proxmox-evpn-bgp-public-ip docker/run.sh check     # validate
-SCENARIO=proxmox-evpn-bgp-public-ip docker/run.sh shell     # debug shell
+SCENARIO=proxmox-evpn-bgp-public-ip docker/run.sh shell     # debug shell (full scenario env)
 
 # same with an explicit flag (scenario name or path)
 docker/run.sh --scenario proxmox-evpn-bgp-public-ip up
@@ -37,6 +37,11 @@ docker/run.sh --scenario proxmox-evpn-bgp-public-ip up
 
 Extra flags are forwarded to the orchestrator, e.g.
 `SCENARIO=<name> docker/run.sh up -continue-on-error`.
+
+The `shell` mode evaluates `orchestrator -env` before opening bash, so every
+scenario variable (manifest values, generated secrets, persisted step outputs
+and `PDCS_SCENARIO_ROOT`) is exported in the debug session — the exact same
+environment the pipeline steps run with.
 
 If `docker build` needs the host network (restrictive proxy/DNS), set
 `DOCKER_BUILD_NETWORK_HOST=true`.
