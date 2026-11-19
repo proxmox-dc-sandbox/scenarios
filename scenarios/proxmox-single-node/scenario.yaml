@@ -1,0 +1,131 @@
+name: proxmox-single-node
+description: "Baseline: one fresh, standalone Proxmox VE node on the local KVM host (nested) — no VMs, no cluster, no custom storage — prepared for manual tests (dnsmasq, FRR, optional enterprise repository switch)."
+
+env:
+  - name: PVE_ROOT_PASSWORD
+    generate: true
+    description: "Root password of the Proxmox VE node (generated and kept in private scenario state)"
+  - name: PVE_ISO
+    value: "assets/proxmox-ve_9.2-1.iso"
+    path: true
+    required: true
+    description: "Scenario-local target path for the downloaded Proxmox VE installation ISO"
+  - name: PVE_ISO_URL
+    value: "https://enterprise.proxmox.com/iso/proxmox-ve_9.2-1.iso"
+    description: "Official Proxmox VE installation ISO URL"
+  - name: PVE_ISO_SHA256
+    value: "4e88fe416df9b527624a175f24c9aa07c714d3332afb1ee3dbf3879573ef2c6c"
+    description: "Official SHA-256 checksum for the Proxmox VE ISO"
+  - name: VM_NAME
+    value: "pve-single"
+  - name: VM_POOL
+    value: "default"
+  - name: VM_NETWORK
+    value: "pdcs-single-network"
+    description: "libvirt network of the node (isolated network, DHCP served by the KVM host)"
+  - name: VM_MAC
+    value: "52:54:00:00:00:44"
+    description: "MAC address, bound to the reserved node address by the libvirt DHCP"
+  - name: VM_MEMORY
+    value: "4096"
+  - name: VM_VCPUS
+    value: "4"
+  - name: VM_DISK_GB
+    value: "30"
+  - name: VM_WAIT
+    value: "30"
+  - name: PVE_KEYBOARD
+    value: "en-us"
+  - name: PVE_COUNTRY
+    value: "fr"
+  - name: PVE_CIDR
+    value: "10.10.0.23/24"
+  - name: PVE_DNS
+    value: "10.10.0.1"
+  - name: PVE_GATEWAY
+    value: "10.10.0.1"
+  - name: PVE_NIC
+    value: "enp1s0"
+  - name: PVE_FQDN
+    value: "pve-single.example.local"
+  - name: PVE_MAILTO
+    value: "admin@example.local"
+  - name: PVE_TIMEZONE
+    value: "Europe/Paris"
+  - name: PROXMOX_NODE_ADDRESS
+    value: "10.10.0.23"
+    description: "Proxmox VE node address on the libvirt network (reserved by MAC)"
+  - name: PROXMOX_NODE_NAME
+    value: "pve-single"
+  - name: PROXMOX_VE_SSH_USERNAME
+    value: "root"
+  - name: PROXMOX_VE_SSH_PASSWORD
+    value: "${PVE_ROOT_PASSWORD}"
+    description: "Optional SSH password (defaults to PVE_ROOT_PASSWORD)"
+  - name: PROXMOX_VE_INSECURE
+    value: "true"
+  - name: PROXMOX_VE_SSH_PRIVATE_KEY_PATH
+    description: "SSH private key used to reach the node (published by the ssh-keygen step)"
+  - name: PVE_SSH_PUBKEY
+    description: "Public key installed on the Proxmox node (published by the ssh-keygen step)"
+  - name: PVE_SSH_WAIT
+    value: "600"
+  - name: PVE_DISABLE_ENTERPRISE
+    value: "true"
+    description: "Disable the Proxmox enterprise repositories on the node and enable pve-no-subscription (true|false, or yes|no)"
+
+steps:
+  - id: check-dependencies
+    type: sh
+    path: infra/scripts/dependencies-check.sh
+    description: "Checks that the dependencies are present on the machine"
+
+  - id: download-proxmox-iso
+    type: sh
+    path: infra/scripts/download-proxmox-iso.sh
+    depends_on: [check-dependencies]
+    requires_env: [PVE_ISO, PVE_ISO_URL, PVE_ISO_SHA256]
+    description: "Download and verify the Proxmox VE ISO in the scenario assets directory"
+
+  - id: ssh-keygen
+    type: sh
+    path: infra/scripts/ssh-keygen.sh
+    depends_on: [download-proxmox-iso]
+    outputs: [PROXMOX_VE_SSH_PRIVATE_KEY_PATH, PVE_SSH_PUBKEY]
+    description: "Generate/reuse the lab SSH key pair and publish its values to the orchestrator"
+
+  - id: kvm-network-creation
+    type: sh
+    path: infra/scripts/kvm-net-creation.sh
+    args: ["start"]
+    depends_on: [download-proxmox-iso]
+    description: "Create the KVM network of the node (isolated, DHCP on the host)"
+
+  - id: proxmox-vm-creation
+    type: sh
+    path: infra/scripts/proxmox/run.sh
+    args: ["${PVE_ISO}"]
+    depends_on: [ssh-keygen, kvm-network-creation]
+    requires_env: [PVE_ISO, PVE_ROOT_PASSWORD, PVE_SSH_PUBKEY]
+    description: "Install the Proxmox VE node from the verified ISO (unattended)"
+
+  - id: proxmox-node-prep
+    type: sh
+    path: infra/scripts/proxmox/node-prep.sh
+    depends_on: [proxmox-vm-creation]
+    requires_env: [PROXMOX_VE_SSH_PRIVATE_KEY_PATH]
+    description: "Prepare the node: dnsmasq + FRR, disable the enterprise repositories (PVE_DISABLE_ENTERPRISE)"
+
+cleanup:
+  - id: proxmox-vm-destroy
+    type: sh
+    path: infra/scripts/proxmox/run.sh
+    args: ["--destroy"]
+    description: "Stop and remove the Proxmox VE VM, its disks and ISO"
+
+  - id: kvm-network-deletion
+    type: sh
+    path: infra/scripts/kvm-net-creation.sh
+    args: ["delete"]
+    depends_on: [proxmox-vm-destroy]
+    description: "Remove the KVM network (idempotent)"
