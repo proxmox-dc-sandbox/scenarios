@@ -41,6 +41,8 @@ go build -o orchestrator/bin/orchestrator orchestrator/cmd/orchestrator
 orchestrator -scenario scenario.yaml -auto                # full run
 orchestrator -scenario scenario.yaml -guided             # step by step
 orchestrator -scenario scenario.yaml -resume              # resume after a crash
+orchestrator -scenario scenario.yaml -replay <step-id>    # re-run a single step
+orchestrator -scenario scenario.yaml -env                 # dump the scenario env as shell exports
 orchestrator -scenario scenario.yaml -phase chaos         # chaos phase only
 orchestrator -scenario scenario.yaml -down                # full teardown (cleanup section)
 orchestrator -scenario scenario.yaml -check               # validate manifest + order
@@ -74,7 +76,7 @@ docker/run.sh down       # tear it down (cleanup section)
 ```
 
 See [`docker/README.md`](docker/README.md) for mounts, environment and
-debugging (`docker/run.sh shell`).
+debugging (`docker/run.sh shell`, which loads the full scenario environment).
 
 ## Scenario structure
 

@@ -140,6 +140,33 @@ re-run.
 orchestrator -scenario scenario.yaml -resume
 ```
 
+For a single step, use `-replay` instead of walking through the whole
+pipeline again.
+
+### `-replay <step-id>`
+
+Re-runs a single step by id, whatever its phase or persisted status — useful
+after a failure to avoid restarting the whole pipeline. Dependencies must be
+`done` and the step's `requires_env` values must be present, exactly as in a
+normal run; the step's outputs are published again into the runtime
+environment and the persisted state.
+
+```shell
+orchestrator -scenario scenario.yaml -replay configure
+orchestrator -scenario scenario.yaml -replay destroy-vms -down   # cleanup step
+```
+
+### `-env`
+
+Prints the resolved scenario environment (manifest values, generated secrets,
+persisted step outputs, plus `PDCS_SCENARIO_NAME` and `PDCS_SCENARIO_ROOT`)
+as POSIX shell `export` statements and exits. `docker/run.sh shell` evaluates
+this output so the debug shell sees the exact same variables as the pipeline.
+
+```shell
+orchestrator -scenario scenario.yaml -env
+```
+
 ### `-reset`
 
 Wipes `.state/` and `logs/` for the scenario, then runs everything fresh.

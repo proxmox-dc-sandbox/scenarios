@@ -18,7 +18,8 @@
 #   resume   resume after a failure (orchestrator -auto -resume)
 #   guided   step by step (orchestrator -guided)
 #   check    validate the manifest (orchestrator -check)
-#   shell    debug shell (bash) in the container
+#   shell    debug shell (bash) in the container, with the full scenario
+#            environment (orchestrator -env)
 #
 # Environment:
 #   SCENARIO                     scenario name (or path) to mount/run
@@ -160,9 +161,17 @@ DOCKER_ENV=(-e "HOME=/tmp")
 # reservation code; the MAC address in scenario.yaml carries the reservation.
 
 if [[ "$MODE" == "shell" ]]; then
+  # The orchestrator resolves the scenario environment (manifest values,
+  # generated secrets, persisted step outputs) and prints it as shell
+  # exports; evaluate them so the debug session sees the same context as
+  # the pipeline, then drop into an interactive bash.
   exec docker run --rm "${TTY_FLAGS[@]}" --network host \
     "${USER_FLAGS[@]}" "${MOUNTS[@]}" "${DOCKER_ENV[@]}" \
-    -w "${REPO_ROOT}" --entrypoint bash "${IMAGE}" "${ORCH_EXTRA[@]}"
+    -w "${REPO_ROOT}" --entrypoint bash "${IMAGE}" \
+    -c 'eval "$(orchestrator -scenario "$1" -root "$2" -env)" \
+      && echo "debug shell: scenario environment loaded (orchestrator -env)" \
+      && exec bash "${@:3}"' \
+    bash "${SCENARIO_DIR}/scenario.yaml" "${SCENARIO_DIR}" "${ORCH_EXTRA[@]}"
 fi
 
 exec docker run --rm "${TTY_FLAGS[@]}" --network host \

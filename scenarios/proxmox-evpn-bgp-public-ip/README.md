@@ -198,7 +198,8 @@ thin shortcuts around it.
 docker/run.sh build
 docker/run.sh up        # install
 docker/run.sh down      # teardown
-docker/run.sh shell     # debug shell
+docker/run.sh shell     # debug shell (full scenario environment)
+docker/run.sh up -replay <step-id>   # re-run a single step after a failure
 
 # Or natively, from the repo root (build once):
 make build
