@@ -22,7 +22,7 @@ host only needs **Docker + KVM/libvirt**.
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   ca-certificates curl wget git jq unzip openssh-client sshpass \
-  iproute2 procps libvirt-daemon-system libvirt-clients \
+  iproute2 procps libvirt-daemon-system libvirt-clients dnsmasq-base \
   qemu-system-x86 qemu-utils virtinst cpu-checker
 ```
 
@@ -32,6 +32,7 @@ What each package is for:
 |---|---|---|
 | `libvirt-daemon-system` | `libvirtd` | Daemon that runs the VMs |
 | `libvirt-clients` | `virsh` | Managing networks and VMs (`qemu:///system`) |
+| `dnsmasq-base` | `dnsmasq` | DHCP/DNS of the libvirt networks |
 | `qemu-system-x86` + KVM | `/dev/kvm` | Virtualization (the nested Proxmox VM) |
 | `qemu-utils` | `qemu-img` | Incremental disk images |
 | `virtinst` | `virt-install` | Creating the lab networks and VMs |

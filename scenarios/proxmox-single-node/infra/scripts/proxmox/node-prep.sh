@@ -35,13 +35,23 @@ pve_wait_ssh "${WAIT}" || die "node unreachable over SSH"
 
 if disable_enterprise; then
   log "Disabling the Proxmox enterprise repositories (PVE_DISABLE_ENTERPRISE=${PVE_DISABLE_ENTERPRISE})"
-  # A fresh install ships pve-enterprise.list and ceph.list under
-  # /etc/apt/sources.list.d/. Comment the enterprise lines out (kept for
+  # A fresh Proxmox VE 9 install ships deb822 *.sources files; older releases
+  # use *.list. Comment out the active lines of both formats (kept for
   # traceability) and enable the pve-no-subscription repository.
-  "${PVE_SSH[@]}" "sed -i 's|^deb |# deb |' /etc/apt/sources.list.d/pve-enterprise.list /etc/apt/sources.list.d/ceph.list" \
-    || true
-  "${PVE_SSH[@]}" "printf '%s\n' 'deb http://download.proxmox.com/debian/pve trixie pve-no-subscription' > /etc/apt/sources.list.d/pve-no-subscription.list" \
-    || die "cannot enable the pve-no-subscription repository"
+  # shellcheck disable=SC2016  # remote shell: expand these variables on the node
+  "${PVE_SSH[@]}" '
+set -e
+for f in /etc/apt/sources.list.d/pve-enterprise.sources \
+         /etc/apt/sources.list.d/ceph.sources \
+         /etc/apt/sources.list.d/pve-enterprise.list \
+         /etc/apt/sources.list.d/ceph.list; do
+  if [ -f "$f" ]; then
+    sed -i "s/^\([^#]\)/# \1/" "$f"
+  fi
+done
+printf "%s\n" "deb http://download.proxmox.com/debian/pve trixie pve-no-subscription" \
+  > /etc/apt/sources.list.d/pve-no-subscription.list
+' || die "cannot enable the pve-no-subscription repository"
 else
   log "Keeping the Proxmox enterprise repositories enabled (PVE_DISABLE_ENTERPRISE=${PVE_DISABLE_ENTERPRISE:-})"
 fi

@@ -3,8 +3,6 @@
 # libvirt is reachable. Exits non-zero if anything is missing.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 MISSING=0
 
 for tool in virsh virt-install qemu-img wget unzip jq python3 xorriso proxmox-auto-install-assistant curl terragrunt tofu git mkpasswd ssh-keygen sshpass sha256sum; do

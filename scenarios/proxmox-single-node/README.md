@@ -24,20 +24,21 @@ A preparation step makes the node "ready to use" right away:
 
 ```mermaid
 flowchart LR
-  Host[KVM host<br/>10.10.0.1] -->|libvirt network pdcs-single-network<br/>isolated 10.10.0.0/24, DHCP by the host| PVE[Proxmox VE node pve-single<br/>10.10.0.23]
+  Host[KVM host<br/>10.10.0.1] -->|libvirt network pdcs-single-network<br/>NATed 10.10.0.0/24, DHCP by the host| PVE[Proxmox VE node pve-single<br/>10.10.0.23]
 ```
 
-- the node lives on an isolated libvirt network; the **host serves DHCP/DNS**
-  (libvirt dnsmasq) and the node address `10.10.0.23` is **reserved by MAC**
-  (`52:54:00:00:00:44`);
+- the node lives on a NATed libvirt network; the **host serves DHCP/DNS**
+  (libvirt dnsmasq), provides outbound Internet access, and the node address
+  `10.10.0.23` is **reserved by MAC** (`52:54:00:00:00:44`);
 - unlike the EVPN/BGP scenario, there is **no bastion**: the node is directly
   reachable from the host over SSH and the Web UI;
 - addresses use documentation ranges (RFC 5737).
 
 ## Prerequisites
 
-- Linux host with KVM (`/dev/kvm`) and libvirt (`qemu:///system`); the
-  scenario runs natively or inside the tools container (`docker/run.sh`).
+- Linux host with KVM (`/dev/kvm`) and libvirt (`qemu:///system`), including
+  `dnsmasq-base` for the libvirt DHCP/DNS; the scenario runs natively or
+  inside the tools container (`docker/run.sh`).
 - Proxmox VE installation ISO (downloaded and verified automatically by the
   `download-proxmox-iso` step).
 

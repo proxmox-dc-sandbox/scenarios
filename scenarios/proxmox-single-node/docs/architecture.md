@@ -8,11 +8,11 @@ preparation step installs the packages needed to play with it right away.
 
 ## Networking
 
-A single libvirt network `pdcs-single-network` (`pdcs-single-br`, isolated
+A single libvirt network `pdcs-single-network` (`pdcs-single-br`, NATed
 bridge, `10.10.0.0/24`):
 
-- the **KVM host owns the gateway/DNS address** `10.10.0.1` and serves DHCP
-  (libvirt dnsmasq);
+- the **KVM host owns the gateway/DNS address** `10.10.0.1`, serves DHCP
+  (libvirt dnsmasq) and provides outbound Internet access through NAT;
 - the node MAC `52:54:00:00:00:44` is pinned to `10.10.0.23` by the DHCP
   static lease, so the address never changes between runs;
 - the node is **directly reachable** from the host: `ssh root@10.10.0.23`,
