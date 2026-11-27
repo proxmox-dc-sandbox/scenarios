@@ -32,10 +32,12 @@ type Config struct {
 	Auto            bool
 	Guided          bool
 	Resume          bool
-	Reset           bool // wipe the persisted state (and logs) before running
-	ContinueOnError bool // when false, a failed non-optional step stops the run
-	Down            bool // run the manifest's cleanup steps (teardown)
-	Check           bool // validate only; do not generate or persist runtime values
+	Replay          string // re-run a single step by id (dependencies must be done)
+	Env             bool   // print the resolved scenario environment as shell exports and exit
+	Reset           bool   // wipe the persisted state (and logs) before running
+	ContinueOnError bool   // when false, a failed non-optional step stops the run
+	Down            bool   // run the manifest's cleanup steps (teardown)
+	Check           bool   // validate only; do not generate or persist runtime values
 }
 
 // ErrQuit is returned when the user quits a guided run; state is already saved.
@@ -155,6 +157,16 @@ func New(cfg Config) (*Orchestrator, error) {
 		byID[s.ID] = s
 	}
 
+	if cfg.Replay != "" {
+		if _, ok := byID[cfg.Replay]; !ok {
+			list := "steps"
+			if cfg.Down {
+				list = "cleanup steps"
+			}
+			return nil, fmt.Errorf("replay: step %q does not exist in the scenario %s", cfg.Replay, list)
+		}
+	}
+
 	o := &Orchestrator{
 		cfg:        cfg,
 		sc:         sc,
@@ -169,7 +181,7 @@ func New(cfg Config) (*Orchestrator, error) {
 		missingEnv: missing,
 		env:        resolved,
 	}
-	if !cfg.Check {
+	if !cfg.Check && !cfg.Env {
 		if err := os.MkdirAll(o.logDir, 0o755); err != nil {
 			return nil, fmt.Errorf("create log dir: %w", err)
 		}
@@ -354,8 +366,13 @@ func (o *Orchestrator) MissingEnv() []string {
 }
 
 // Run executes the steps of the selected phase (or the cleanup steps in
-// down mode) and prints a final summary.
+// down mode) and prints a final summary. When cfg.Replay names a step, only
+// that step is executed (see replayStep).
 func (o *Orchestrator) Run(ctx context.Context) error {
+	if o.cfg.Replay != "" {
+		return o.replayStep(ctx, o.cfg.Replay)
+	}
+
 	if len(o.missingEnv) > 0 && !o.cfg.Down {
 		return fmt.Errorf("missing required scenario values: %s (set 'value:' in scenario.yaml)",
 			strings.Join(o.missingEnv, ", "))
@@ -443,71 +460,16 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 			}
 		}
 
-		fmt.Printf("==> step %s (%s): %s\n", step.ID, step.Type, step.Description)
-		r, ok := o.runner[step.Type]
-		if !ok {
-			return fmt.Errorf("step %q: no runner for type %q", step.ID, step.Type)
-		}
-
-		o.st.Begin(id)
-		if err := o.st.Save(o.stateFile); err != nil {
-			return fmt.Errorf("persist running state for step %q: %w", id, err)
-		}
-
-		logw, closeFn, err := o.stepLogWriter(step)
-		if err != nil {
-			return fmt.Errorf("step %q: %w", id, err)
-		}
-
-		logCli := logw
-		if o.cfg.Guided {
-			logCli = io.MultiWriter(logw, os.Stdout)
-		}
-
-		outputsPath, removeOutputs, err := outputFile()
-		if err != nil {
-			closeFn()
-			return fmt.Errorf("step %q: %w", id, err)
-		}
-		step.Env = cloneEnvironment(o.env)
-		for name, value := range o.byID[id].Env {
-			step.Env[name] = manifest.Expand(value, o.env)
-		}
-		step.Env["PDCS_SCENARIO_ROOT"] = o.root
-		step.Env["PDCS_ENV_OUTPUT_FILE"] = outputsPath
-
-		runErr := r.Run(ctx, step, o.root, logCli)
-		closeFn()
-		if runErr == nil {
-			outputs, outputErr := readStepOutputs(outputsPath, step.Outputs)
-			if outputErr != nil {
-				runErr = outputErr
-			} else {
-				for name, value := range outputs {
-					o.env[name] = value
-					o.st.SetEnvironment(name, value)
-				}
-			}
-		}
-		removeOutputs()
-
-		if runErr != nil {
-			o.st.Finish(id, state.StatusFailed, runErr.Error())
-			if saveErr := o.st.Save(o.stateFile); saveErr != nil {
-				return fmt.Errorf("step %q failed (%v) and state could not be persisted: %w", id, runErr, saveErr)
-			}
+		res := o.executeStep(ctx, step)
+		if res.err != nil {
 			failed++
-			fmt.Printf("  [FAILED] %s: %v (log: %s/%s.log)\n", id, runErr, o.logDir, id)
-			if !step.Optional && !o.cfg.ContinueOnError {
-				return runErr
+			fmt.Printf("  [FAILED] %s: %v (log: %s/%s.log)\n", id, res.err, o.logDir, id)
+			if res.aborted || (!step.Optional && !o.cfg.ContinueOnError) {
+				return res.err
 			}
 			continue
 		}
 
-		o.st.Finish(id, state.StatusDone, "")
-		if err := o.st.Save(o.stateFile); err != nil {
-			return fmt.Errorf("persist completed step %q and its environment outputs: %w", id, err)
-		}
 		done++
 		fmt.Printf("  [OK] %s\n", id)
 	}
@@ -515,6 +477,149 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	notRun = o.unexecutedSteps()
 	o.printSummary(done, failed, skipped, notRun)
 	return nil
+}
+
+// replayStep executes a single step by id, whatever its phase or persisted
+// status. Dependencies must be done and the step's environment requirements
+// satisfied, exactly as in a normal run; the step's outputs are published
+// again into the runtime environment and the persisted state.
+func (o *Orchestrator) replayStep(ctx context.Context, id string) error {
+	step := cloneStep(o.byID[id])
+
+	if err := o.checkDependencies(step); err != nil {
+		return fmt.Errorf("replay step %q: %w", id, err)
+	}
+	if missing := o.missingForStep(step); len(missing) > 0 {
+		return fmt.Errorf("replay step %q: missing scenario values: %s (set inputs in scenario.yaml or fix the producing step)",
+			id, strings.Join(missing, ", "))
+	}
+	manifest.ExpandStep(&step, o.env)
+
+	phase := o.cfg.Phase
+	if o.cfg.Down {
+		phase = "cleanup"
+	}
+	fmt.Printf("scenario=%q phase=%s mode=replay step=%q state=%s\n", o.sc.Name, phase, id, o.stateFile)
+
+	res := o.executeStep(ctx, step)
+	if res.err != nil {
+		fmt.Printf("  [FAILED] %s: %v (log: %s/%s.log)\n", id, res.err, o.logDir, id)
+		if res.aborted || !o.cfg.ContinueOnError {
+			return res.err
+		}
+		fmt.Printf("Summary : replay of step %q failed (phase=%s)\n", id, phase)
+		return nil
+	}
+	fmt.Printf("  [OK] %s\n", id)
+	fmt.Printf("Summary : replay of step %q %s (phase=%s)\n", id, res.status, phase)
+	return nil
+}
+
+// stepResult is the outcome of executeStep.
+type stepResult struct {
+	status  state.Status
+	err     error // execution error; nil when the step completed
+	aborted bool  // state could not be persisted; the run must stop
+}
+
+// executeStep runs a single step with its full scenario environment and
+// records the outcome in the persisted state. Output is streamed to the
+// per-step log (and, in guided mode, to the terminal) and the declared step
+// outputs are published into the runtime environment.
+func (o *Orchestrator) executeStep(ctx context.Context, step manifest.Step) stepResult {
+	fmt.Printf("==> step %s (%s): %s\n", step.ID, step.Type, step.Description)
+	r, ok := o.runner[step.Type]
+	if !ok {
+		return stepResult{status: state.StatusFailed, aborted: true,
+			err: fmt.Errorf("step %q: no runner for type %q", step.ID, step.Type)}
+	}
+
+	o.st.Begin(step.ID)
+	if err := o.st.Save(o.stateFile); err != nil {
+		return stepResult{status: state.StatusFailed, aborted: true,
+			err: fmt.Errorf("persist running state for step %q: %w", step.ID, err)}
+	}
+
+	logw, closeFn, err := o.stepLogWriter(step)
+	if err != nil {
+		return stepResult{status: state.StatusFailed, aborted: true,
+			err: fmt.Errorf("step %q: %w", step.ID, err)}
+	}
+
+	logCli := logw
+	if o.cfg.Guided {
+		logCli = io.MultiWriter(logw, os.Stdout)
+	}
+
+	outputsPath, removeOutputs, err := outputFile()
+	if err != nil {
+		closeFn()
+		return stepResult{status: state.StatusFailed, aborted: true,
+			err: fmt.Errorf("step %q: %w", step.ID, err)}
+	}
+	step.Env = cloneEnvironment(o.env)
+	for name, value := range o.byID[step.ID].Env {
+		step.Env[name] = manifest.Expand(value, o.env)
+	}
+	step.Env["PDCS_SCENARIO_ROOT"] = o.root
+	step.Env["PDCS_ENV_OUTPUT_FILE"] = outputsPath
+
+	runErr := r.Run(ctx, step, o.root, logCli)
+	closeFn()
+	if runErr == nil {
+		outputs, outputErr := readStepOutputs(outputsPath, step.Outputs)
+		if outputErr != nil {
+			runErr = outputErr
+		} else {
+			for name, value := range outputs {
+				o.env[name] = value
+				o.st.SetEnvironment(name, value)
+			}
+		}
+	}
+	removeOutputs()
+
+	if runErr != nil {
+		o.st.Finish(step.ID, state.StatusFailed, runErr.Error())
+		if saveErr := o.st.Save(o.stateFile); saveErr != nil {
+			return stepResult{status: state.StatusFailed, aborted: true,
+				err: fmt.Errorf("step %q failed (%v) and state could not be persisted: %w", step.ID, runErr, saveErr)}
+		}
+		return stepResult{status: state.StatusFailed, err: runErr}
+	}
+
+	o.st.Finish(step.ID, state.StatusDone, "")
+	if err := o.st.Save(o.stateFile); err != nil {
+		return stepResult{status: state.StatusDone, aborted: true,
+			err: fmt.Errorf("persist completed step %q and its environment outputs: %w", step.ID, err)}
+	}
+	return stepResult{status: state.StatusDone}
+}
+
+// ShellEnvironment returns a copy of the resolved scenario environment as
+// seen by steps, including the orchestrator-provided PDCS_* context, for
+// the debug shell (docker/run.sh shell).
+func (o *Orchestrator) ShellEnvironment() map[string]string {
+	env := cloneEnvironment(o.env)
+	env["PDCS_SCENARIO_NAME"] = o.sc.Name
+	env["PDCS_SCENARIO_ROOT"] = o.root
+	return env
+}
+
+// ShellExports renders an environment as POSIX shell export statements
+// (export NAME='value'), safe to evaluate with `eval` or `source`. Names
+// are sorted so the output is deterministic.
+func ShellExports(env map[string]string) string {
+	keys := make([]string, 0, len(env))
+	for name := range env {
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+	var out strings.Builder
+	for _, name := range keys {
+		fmt.Fprintf(&out, "export %s='%s'\n", name, strings.ReplaceAll(env[name], "'", `'\''`))
+	}
+	return out.String()
 }
 
 // missingForStep returns the step's required environment variables that are

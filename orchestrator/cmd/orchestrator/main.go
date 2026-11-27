@@ -1,4 +1,5 @@
-// Command orchestrator runs a scenario in auto, guided or resume mode.
+// Command orchestrator runs a scenario in auto, guided, resume or replay
+// mode.
 package main
 
 import (
@@ -18,6 +19,8 @@ type options struct {
 	auto            bool
 	guided          bool
 	resume          bool
+	replay          string
+	env             bool
 	reset           bool
 	check           bool
 	continueOnError bool
@@ -36,6 +39,9 @@ Options:
   -auto                 run all steps of the phase without interaction (default)
   -guided               ask before each step: Enter=run, s=skip (optional only), q=quit
   -resume               skip steps already done/skipped, rerun failed/pending
+  -replay <step-id>     re-run a single step by id (dependencies must be done)
+  -env                  print the resolved scenario environment as shell
+                        exports (debug shell) and exit
   -reset                wipe .state/ and logs/ then run everything fresh
   -continue-on-error    keep going after a failed step (default: stop)
   -down                 run the manifest's cleanup section (full teardown)
@@ -77,6 +83,14 @@ func parseArgs(args []string) (*options, error) {
 			opts.guided = true
 		case "-resume":
 			opts.resume = true
+		case "-replay":
+			if i+1 >= len(args) {
+				return nil, fmt.Errorf("missing value for -replay")
+			}
+			i++
+			opts.replay = args[i]
+		case "-env":
+			opts.env = true
 		case "-reset":
 			opts.reset = true
 		case "-check":
@@ -118,6 +132,8 @@ func run() error {
 		Auto:            opts.auto,
 		Guided:          opts.guided,
 		Resume:          opts.resume,
+		Replay:          opts.replay,
+		Env:             opts.env,
 		Reset:           opts.reset,
 		ContinueOnError: opts.continueOnError,
 		Down:            opts.down,
@@ -125,6 +141,13 @@ func run() error {
 	})
 	if err != nil {
 		return err
+	}
+
+	if opts.env {
+		// Print the resolved scenario environment as shell exports (the
+		// debug shell sources this to mirror the pipeline's context).
+		fmt.Print(orchestrator.ShellExports(o.ShellEnvironment()))
+		return nil
 	}
 
 	if opts.check {

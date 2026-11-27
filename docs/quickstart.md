@@ -113,6 +113,7 @@ Launch it from the repository root:
 
 ```bash
 docker/run.sh guided    # step by step; or use: up / down / resume / check / shell
+docker/run.sh up -replay <step-id>   # re-run a single step after a failure
 ```
 
 > **Note:** for development, you can also run everything natively, without

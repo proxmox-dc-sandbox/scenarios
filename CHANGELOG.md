@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   five historical commits) and ShellCheck on every script; `ci` workflow —
   port of the historical `.gitlab-ci.yml` (orchestrator go build/vet/test +
   manifest validation loop).
+- Orchestrator `-replay <step-id>`: re-runs a single step by id (whatever
+  its phase or persisted status) with the full scenario environment, without
+  restarting the pipeline — dependencies must be done, outputs are
+  re-published into state. Also honored through `docker/run.sh`
+  (`up -replay <step-id>`).
+- Orchestrator `-env`: prints the resolved scenario environment (manifest
+  values, generated secrets, persisted step outputs, `PDCS_SCENARIO_NAME` /
+  `PDCS_SCENARIO_ROOT`) as POSIX shell exports; `docker/run.sh shell` now
+  evaluates it, so the debug shell sees the exact same variables as the
+  pipeline.
 - New baseline scenario `scenarios/proxmox-single-node`: one standalone
   Proxmox VE node (unattended ISO install on a libvirt network with DHCP
   reserved address), no Proxmox resources provisioned on top. SSH/Web UI
