@@ -14,6 +14,8 @@ ORCH := orchestrator
 BIN  := $(ORCH)/bin/orchestrator
 SCENARIOS := $(wildcard scenarios/*/scenario.yaml) $(ORCH)/examples/hello-scenario/scenario.yaml
 
+SHELL := /bin/bash
+
 .PHONY: build test vet fmt lint security check clean
 
 build:
