@@ -45,6 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PDCS_SCENARIO_ROOT`) as POSIX shell exports; `docker/run.sh shell` now
   evaluates it, so the debug shell sees the exact same variables as the
   pipeline.
+- New baseline scenario `scenarios/proxmox-single-node`: one standalone
+  Proxmox VE node (unattended ISO install on a libvirt network with DHCP
+  reserved address), no Proxmox resources provisioned on top. SSH/Web UI
+  access via the generated key and `PVE_ROOT_PASSWORD`. The
+  `proxmox-node-prep` step installs dnsmasq and FRR, enables the
+  `snippets` content type and disables the enterprise repositories in favor
+  of `pve-no-subscription` — controlled by the new `PVE_DISABLE_ENTERPRISE`
+  scenario variable (`true|false` or `yes|no`).
 
 ### Changed
 

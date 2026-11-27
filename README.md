@@ -12,8 +12,9 @@ BGP ...) driven by a Go orchestrator.
 scenarios/
 ├── scenarios/                 the scenarios (one directory = one scenario)
 │   ├── _template/             template to copy when creating a new scenario
-│   └── proxmox-evpn-bgp-public-ip/   EVPN + BGP networking lab (MikroTik CHR)
-│       └── tests/e2e/         post-deployment validation scripts
+│   ├── proxmox-evpn-bgp-public-ip/   EVPN + BGP networking lab (MikroTik CHR)
+│   │       └── tests/e2e/     post-deployment validation scripts
+│   └── proxmox-single-node/   baseline: one fresh standalone Proxmox node
 ├── _fork-registry.md          who forked what, links to the forks
 ├── orchestrator/              the Go orchestrator (scaffold + tests)
 ├── docker/                    runner image + docker/run.sh lifecycle wrappers
