@@ -17,6 +17,7 @@
 | Scenario | Fork of | Repository / link | Status | Notes |
 |----------|---------|-------------------|--------|-------|
 | `scenarios/proxmox-evpn-bgp-public-ip` | — (root) | [local](./scenarios/proxmox-evpn-bgp-public-ip/) | active | EVPN + BGP lab with MikroTik CHR (migrated to the current template) |
+| `scenarios/proxmox-single-node` | — (root) | [local](./scenarios/proxmox-single-node/) | active | Baseline single-node Proxmox; install/prep scripts adapted from proxmox-evpn-bgp-public-ip |
 | `scenarios/_template` | — | [local](./scenarios/_template/) | — | Template — never derive from it directly; always copy it and declare the fork here |
 
 ## Rules
